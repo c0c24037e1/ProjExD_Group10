@@ -36,6 +36,167 @@ def detect_top_walkable_y(bg_surf: pygame.Surface) -> int:
     # 見つからなければ 0 付近を返す（安全側）
     return 2
 
+# 以下個人実装コード
+
+# モンスタークラスは回復などの機能実装のため、仮実装させている。他の人とマージした際に修正
+class Monster:
+    def __init__(self, name, max_hp):
+        self.name = name
+        self.max_hp = max_hp
+        self.hp = max_hp
+        self.status = None  # None, "Poison", "Paralysis", など
+
+    def heal(self, amount):
+        self.hp = min(self.hp + amount, self.max_hp)
+
+    def status_heal(self):
+        self.status = None
+
+# インベントリークラス(個人実装)
+class Inventory:
+    """
+    Bキーを押すとインベントリ画面が開き、バッグ、キーアイテム、モンスターの3つのタブが出てくる
+    ポーションを選択すると回復、解毒、異常状態回復の3つが選べ、使う事でその効果をモンスターに与える事ができる。
+    モンスタータブではモンスターのHPや状態を確認する事ができる。
+    """
+    def __init__(self, screen: pygame.Surface, monster: Monster) -> None:
+        self.screen = screen
+        self.monster = monster
+        self.bg_img = pygame.image.load("インベントリ背景画像.png").convert()
+        self.bg_img = pygame.transform.scale(self.bg_img, (800, 600))
+        self.bg_rect = self.bg_img.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2))
+
+        self.font_tab = pygame.font.Font(None, 50)
+        self.font_item = pygame.font.Font(None, 40)
+
+        self.tabs = ["Bag", "Key Items", "Monster"]
+        self.items = {
+            "Bag": ["Potion", "Items"],
+            "Key Items": ["Bicycle", "Map", "Coin"]
+        }
+
+        self.current_tab = 0
+        self.cursor = 0
+
+    def open(self) -> None:
+        """インベントリ画面を開く"""
+        while True:
+            self.draw()
+            pygame.display.flip()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_b:
+                        return
+                    elif event.key == pygame.K_RIGHT:
+                        self.current_tab = (self.current_tab + 1) % len(self.tabs)
+                        self.cursor = 0
+                    elif event.key == pygame.K_LEFT:
+                        self.current_tab = (self.current_tab - 1) % len(self.tabs)
+                        self.cursor = 0
+                    elif event.key == pygame.K_DOWN:
+                        if self.tabs[self.current_tab] in ["Bag", "Key Items"]:
+                            current_items = self.items[self.tabs[self.current_tab]]
+                            if len(current_items) > 1:
+                                self.cursor = (self.cursor + 1) % len(current_items)
+                    elif event.key == pygame.K_UP:
+                        if self.tabs[self.current_tab] in ["Bag", "Key Items"]:
+                            current_items = self.items[self.tabs[self.current_tab]]
+                            if len(current_items) > 1:
+                                self.cursor = (self.cursor - 1) % len(current_items)
+                    elif event.key == pygame.K_RETURN:
+                        self.select_item()
+
+    def draw(self) -> None:
+        """インベントリの描画"""
+        self.screen.blit(self.bg_img, self.bg_rect.topleft)
+
+        # タブ描画
+        for i, tab in enumerate(self.tabs):
+            color = (255, 255, 0) if i == self.current_tab else (200, 200, 200)
+            tab_text = self.font_tab.render(tab, True, color)
+            tab_x = self.bg_rect.left + 50 + i * 200
+            tab_y = self.bg_rect.top + 20
+            self.screen.blit(tab_text, (tab_x, tab_y))
+
+        # アイテムタブ描画
+        if self.tabs[self.current_tab] in ["Bag", "Key Items"]:
+            current_items = self.items[self.tabs[self.current_tab]]
+            for i, item in enumerate(current_items):
+                color = (255, 255, 255) if i == self.cursor else (150, 150, 150)
+                item_text = self.font_item.render(item, True, color)
+                self.screen.blit(item_text, (self.bg_rect.left + 100, self.bg_rect.top + 100 + i * 50))
+        # モンスタータブ描画
+        elif self.tabs[self.current_tab] == "Monster":
+            m = self.monster
+            color = (255, 255, 255)
+            self.screen.blit(self.font_item.render(m.name, True, color), (self.bg_rect.left + 50, self.bg_rect.top + 100))
+            self.screen.blit(self.font_item.render(f"HP: {m.hp}/{m.max_hp}", True, color), (self.bg_rect.left + 50, self.bg_rect.top + 130))
+            self.screen.blit(self.font_item.render(f"Status: {m.status if m.status else 'Normal'}", True, color), (self.bg_rect.left + 50, self.bg_rect.top + 160))
+
+    def select_item(self) -> None:
+        """選択中のアイテムを使用"""
+        if self.tabs[self.current_tab] in ["Bag", "Key Items"]:
+            current_items = self.items[self.tabs[self.current_tab]]
+            selected_item = current_items[self.cursor]
+            if selected_item == "Potion":
+                self.potion_select()
+            else:
+                # Not implemented yet
+                font = pygame.font.Font(None, 40)
+                msg_surface = font.render(f"{selected_item} is not implemented yet!", True, (255, 255, 255))
+                
+                # Draw background → draw inventory → draw message → update display
+                self.screen.blit(self.bg_img, self.bg_rect.topleft)
+                self.draw()
+                self.screen.blit(msg_surface, (self.bg_rect.left + 100, self.bg_rect.top + 400))
+                pygame.display.flip()
+                pygame.time.delay(800)  # display for 0.8 seconds
+
+    def potion_select(self) -> None:
+        """ポーション選択と使用"""
+        potions = ["Heal Potion", "Antidote", "Status Heal"]
+        cursor = 0
+        font = pygame.font.Font(None, 40)
+        while True:
+            self.screen.blit(self.bg_img, self.bg_rect.topleft)
+            self.draw()
+            for i, potion in enumerate(potions):
+                color = (255, 255, 255) if i == cursor else (150, 150, 150)
+                self.screen.blit(font.render(potion, True, color), (self.bg_rect.left + 300, self.bg_rect.top + 100 + i * 50))
+            pygame.display.flip()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        potion_name = potions[cursor]
+                        if potion_name == "Heal Potion":
+                            self.monster.heal(50)
+                        elif potion_name == "Antidote":
+                            if self.monster.status == "Poison":
+                                self.monster.status_heal()
+                        elif potion_name == "Status Heal":
+                            self.monster.status_heal()
+
+                        used_text = font.render(f"Used {potion_name} on {self.monster.name}!", True, (255,255,255))
+                        self.screen.blit(self.bg_img, self.bg_rect.topleft)
+                        self.draw()
+                        self.screen.blit(used_text, (self.bg_rect.left + 150, self.bg_rect.top + 400))
+                        pygame.display.flip()
+                        pygame.time.delay(800)
+                        return
+                    elif event.key == pygame.K_UP:
+                        cursor = (cursor - 1) % len(potions)
+                    elif event.key == pygame.K_DOWN:
+                        cursor = (cursor + 1) % len(potions)
+                    elif event.key == pygame.K_b:
+                        return
+                
+# 以下基本コード(多少付け足しあり)
 def main():
     pygame.init()
 
@@ -103,12 +264,19 @@ def main():
     clock = pygame.time.Clock()
     speed = 4
 
+    monster = Monster("Dragon", 200)
+    monster.status = "Poison"
+    inventory = Inventory(screen,monster)  # インベントリクラスのインスタンス化
+
     # ===== ゲームループ =====
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            #　Bキーでインベントリを開く
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_b:
+                inventory.open()
 
         keys = pygame.key.get_pressed()
         dx = dy = 0
