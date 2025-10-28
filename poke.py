@@ -40,7 +40,7 @@ def main():
     pygame.init()
 
     screen = pygame.display.set_mode((800, 600))
-    pygame.display.set_caption("Top View Demo")
+    pygame.display.set_caption("ポケットコウカトン")
 
     # ===== 背景読み込み =====
     bg_img = pygame.image.load("background.png").convert()
