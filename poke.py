@@ -357,7 +357,7 @@ def battle_scene(screen, enemy_name="ボス"):
     # --- アセットの読み込み ---
     bg = pygame.transform.scale(pygame.image.load("battle_bg.png").convert(), (W, H))
     player_poke = pygame.transform.scale(pygame.image.load("9.png").convert_alpha(), (200, 200))
-    enemy_poke = pygame.transform.scale(pygame.image.load("9.png").convert_alpha(), (200, 200))
+    enemy_poke = pygame.transform.scale(pygame.image.load("enemy.png").convert_alpha(), (200, 200))
     
     # --- オブジェクトの初期化 ---
     player_rect = player_poke.get_rect(bottomleft=(200, 550))
