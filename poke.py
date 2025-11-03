@@ -12,7 +12,7 @@ TOP_LIMIT_OFFSET = -300
 
 def detect_top_walkable_y(bg_surf: pygame.Surface) -> int:
     cx = bg_surf.get_rect().centerx
-    h  = bg_surf.get_height()
+    h = bg_surf.get_height()
     sample_y = int(h * 0.65)
     floor_color = bg_surf.get_at((cx, sample_y))
     band = range(cx - 6, cx + 7)
@@ -23,13 +23,80 @@ def detect_top_walkable_y(bg_surf: pygame.Surface) -> int:
     return 2
 
 
+# ふれあいモードを管理するクラス
+
+class PetScene:
+    def __init__(self, folder: str, screen: pygame.Surface):
+        """ふれあいシーンを初期化"""
+        self.screen = screen
+        self.folder = folder
+        self.state = "normal"  # "normal", "pet", "hit", "hit_strong"
+        self.last_q_press_time = 0
+        self.action_start_time = 0
+
+        # フォント
+        self.font = pygame.font.SysFont("meiryo", 28)
+
+        # 画像をロード
+        self.images = {
+            "normal": pygame.image.load(os.path.join(folder, "1.png")).convert_alpha(),
+            "pet": pygame.image.load(os.path.join(folder, "9.png")).convert_alpha(),
+            "hit": pygame.image.load(os.path.join(folder, "7.png")).convert_alpha(),
+            "hit_strong": pygame.image.load(os.path.join(folder, "8.png")).convert_alpha(),
+        }
+
+    def handle_event(self, event):
+        """キー入力処理"""
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_a:
+                self.state = "pet"
+                self.action_start_time = time.time()
+            elif event.key == pygame.K_q:
+                now = time.time()
+                if now - self.last_q_press_time < 0.4:
+                    self.state = "hit_strong"
+                else:
+                    self.state = "hit"
+                self.last_q_press_time = now
+                self.action_start_time = now
+
+    def update(self):
+        """状態更新（一定時間でnormalに戻す）"""
+        if self.state != "normal" and time.time() - self.action_start_time > 3:
+            self.state = "normal"
+
+    def draw(self):
+        """画面描画"""
+        screen = self.screen
+        screen.fill((255, 200, 220))
+
+        sw, sh = screen.get_size()
+        pet_img = self.images[self.state]
+
+        # 画像を画面中央に拡大して表示
+        ih, iw = pet_img.get_height(), pet_img.get_width()
+        scale_factor = (sh * 0.6) / ih
+        scaled = pygame.transform.scale(pet_img, (int(iw * scale_factor), int(ih * scale_factor)))
+        rect = scaled.get_rect(center=(sw // 2, sh // 2))
+        screen.blit(scaled, rect)
+
+        # 説明テキスト
+        msg1 = self.font.render("A：なでる", True, (100, 0, 50))
+        msg2 = self.font.render("Q：なぐる（連打で強）", True, (100, 0, 50))
+        msg3 = self.font.render("F：もどる", True, (100, 0, 50))
+        screen.blit(msg1, (sw - msg1.get_width() - 20, 20))
+        screen.blit(msg2, (sw - msg2.get_width() - 20, 60))
+        screen.blit(msg3, (sw - msg3.get_width() - 20, 100))
+
+
+# メインゲーム部分（元のmain関数）
+
 def main():
     pygame.init()
-
     screen = pygame.display.set_mode((800, 600))
     pygame.display.set_caption("ポケットコウカトン")
 
-    # ===== 背景読み込み =====
+    # ===== 背景 =====
     bg_img = pygame.image.load("background.png").convert()
     bg_rect = bg_img.get_rect()
     screen = pygame.display.set_mode((bg_rect.width, bg_rect.height))
@@ -72,23 +139,13 @@ def main():
 
     clock = pygame.time.Clock()
     speed = 4
-
-    # ===== フラグ =====
     pink_mode = False
-    pet_image_state = "normal"  # "normal", "pet", "hit", "hit_strong"
-    last_q_press_time = 0
-    action_start_time = 0  # AやQを押したときの時間を記録
 
-    # ===== フォント =====
     font = pygame.font.SysFont("meiryo", 28)
     info_text = font.render("Fキーでふれあい画面へ", True, (255, 255, 255))
 
-    # ===== ふれあい画像 =====
-    pet_folder = "こうかとん"
-    img_normal = pygame.image.load(os.path.join(pet_folder, "1.png")).convert_alpha()
-    img_pet    = pygame.image.load(os.path.join(pet_folder, "9.png")).convert_alpha()
-    img_hit    = pygame.image.load(os.path.join(pet_folder, "7.png")).convert_alpha()
-    img_hit2   = pygame.image.load(os.path.join(pet_folder, "8.png")).convert_alpha()
+    # ===== PetSceneのインスタンス作成 =====
+    pet_scene = PetScene("こうかとん", screen)
 
     # ===== ゲームループ =====
     while True:
@@ -99,55 +156,14 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_f:
                     pink_mode = not pink_mode
-                    pet_image_state = "normal"
+                    pet_scene.state = "normal"
                 elif pink_mode:
-                    # ふれあいモード中のキー操作
-                    if event.key == pygame.K_a:
-                        pet_image_state = "pet"
-                        action_start_time = time.time()
-                    elif event.key == pygame.K_q:
-                        now = time.time()
-                        if now - last_q_press_time < 0.4:
-                            pet_image_state = "hit_strong"
-                        else:
-                            pet_image_state = "hit"
-                        last_q_press_time = now
-                        action_start_time = now
+                    pet_scene.handle_event(event)
 
         # ===== ふれあいモード =====
         if pink_mode:
-            screen.fill((255, 200, 220))  # 薄ピンク背景
-
-            # 3秒経過で自動的に戻す
-            if pet_image_state != "normal" and time.time() - action_start_time > 3:
-                pet_image_state = "normal"
-
-            # 表示する画像を選択
-            if pet_image_state == "normal":
-                pet_img = img_normal
-            elif pet_image_state == "pet":
-                pet_img = img_pet
-            elif pet_image_state == "hit":
-                pet_img = img_hit
-            elif pet_image_state == "hit_strong":
-                pet_img = img_hit2
-
-            # ===== 画像を中央・6割サイズで表示 =====
-            sw, sh = screen.get_size()
-            ih, iw = pet_img.get_height(), pet_img.get_width()
-            scale_factor = (sh * 0.6) / ih
-            pet_img_scaled = pygame.transform.scale(pet_img, (int(iw * scale_factor), int(ih * scale_factor)))
-            rect = pet_img_scaled.get_rect(center=(sw // 2, sh // 2))
-            screen.blit(pet_img_scaled, rect)
-
-            # ===== 右上にキー説明を表示 =====
-            msg1 = font.render("A：なでる", True, (100, 0, 50))
-            msg2 = font.render("Q：なぐる（連打で強）", True, (100, 0, 50))
-            msg3 = font.render("F：もどる", True, (100, 0, 50))
-            screen.blit(msg1, (sw - msg1.get_width() - 20, 20))
-            screen.blit(msg2, (sw - msg2.get_width() - 20, 60))
-            screen.blit(msg3, (sw - msg3.get_width() - 20, 100))
-
+            pet_scene.update()
+            pet_scene.draw()
             pygame.display.flip()
             clock.tick(60)
             continue
@@ -172,7 +188,6 @@ def main():
         player_rect.x += dx
         player_rect.y += dy
         player_rect.clamp_ip(bg_rect)
-
         if player_rect.top < top_limit:
             player_rect.top = top_limit
 
