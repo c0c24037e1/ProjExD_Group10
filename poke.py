@@ -87,15 +87,31 @@ class Inventory:
 
     # ==== 共通：メッセージ表示関数 ====
     def show_message(self, text: str, delay=800):
-        """半透明黒背景に白文字でメッセージを表示"""
-        overlay = pygame.Surface((800, 600), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 150))  # 半透明黒
-        text_surface = self.font_item.render(text, True, (255, 255, 255))
-        text_rect = text_surface.get_rect(center=(400, 550))
-        self.screen.blit(overlay, (0, 0))
-        self.screen.blit(text_surface, text_rect)
+        """中央下に小さめの黒背景＋白文字でメッセージを表示"""
+        # 背景サイズ（画面幅の7割、縦100px程度）
+        msg_width = int(self.screen.get_width() * 0.7)
+        msg_height = 100
+
+        # 背景の位置（画面中央）
+        msg_x = (self.screen.get_width() - msg_width) // 2
+        msg_y = (self.screen.get_height() - msg_height) // 2
+
+        # 半透明黒背景を作成（より黒く、透明度220/255）
+        overlay = pygame.Surface((msg_width, msg_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 220))  # ← 透明度を上げることでより黒く
+
+        # テキストを白で描画
+        font = pygame.font.Font(None, 36)
+        text_surface = font.render(text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center=(msg_width // 2, msg_height // 2))
+
+        # 背景を描画
+        self.screen.blit(overlay, (msg_x, msg_y))
+        self.screen.blit(text_surface, (msg_x + text_rect.x, msg_y + text_rect.y))
+
         pygame.display.flip()
         pygame.time.delay(delay)
+
 
     def open(self) -> None:
         """インベントリ画面を開く"""
