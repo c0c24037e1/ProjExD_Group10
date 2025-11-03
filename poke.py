@@ -4,10 +4,10 @@ import os
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-#  上限（上方向の到達位置）設定 
-USE_MANUAL_TOP_LIMIT = False   # True: MANUAL_TOP_Y を使う / False: 背景から自動検出
-MANUAL_TOP_Y = 150             # 手動で決める最小 top 座標（小さいほど上へ行ける）
-TOP_LIMIT_OFFSET = -300        # 自動検出値に加えるオフセット（負でさらに上へ行ける）
+# 上限（上方向の到達位置）設定
+USE_MANUAL_TOP_LIMIT = False  # True: MANUAL_TOP_Y を使う / False: 背景から自動検出
+MANUAL_TOP_Y = 150  # 手動で決める最小 top 座標（小さいほど上へ行ける）
+TOP_LIMIT_OFFSET = -300  # 自動検出値に加えるオフセット（負でさらに上へ行ける）
 
 
 def detect_top_walkable_y(bg_surf: pygame.Surface) -> int:
@@ -15,10 +15,11 @@ def detect_top_walkable_y(bg_surf: pygame.Surface) -> int:
     背景画像の中央付近の床色を基準に、
     画面中央の細い帯（±6px）を上方向へスキャンして
     「床が始まる最上端」の y を返す（プレイヤーrect.topの最小値に使う）。
+
     ※ドット絵など床と壁の色がはっきり分かれている前提の簡易版。
     """
     cx = bg_surf.get_rect().centerx
-    h  = bg_surf.get_height()
+    h = bg_surf.get_height()
 
     # まず中央やや下（確実に床のはず）から床色を取得
     sample_y = int(h * 0.65)
@@ -36,9 +37,10 @@ def detect_top_walkable_y(bg_surf: pygame.Surface) -> int:
     # 見つからなければ 0 付近を返す（安全側）
     return 2
 
-# 以下個人実装コード
 
-# モンスタークラスは回復などの機能実装のため、仮実装させている。他の人とマージした際に修正
+# ===========================
+# モンスタークラス（仮実装）
+# ===========================
 class Monster:
     def __init__(self, name, max_hp):
         self.name = name
@@ -52,16 +54,21 @@ class Monster:
     def status_heal(self):
         self.status = None
 
-# インベントリークラス(個人実装)
+
+# ===========================
+# インベントリークラス
+# ===========================
 class Inventory:
     """
-    Bキーを押すとインベントリ画面が開き、バッグ、キーアイテム、モンスターの3つのタブが出てくる
+    Bキーを押すとインベントリ画面が開き、バッグ、キーアイテム、モンスターの3つのタブが出てくる。
     ポーションを選択すると回復、解毒、異常状態回復の3つが選べ、使う事でその効果をモンスターに与える事ができる。
     モンスタータブではモンスターのHPや状態を確認する事ができる。
     """
+
     def __init__(self, screen: pygame.Surface, monster: Monster) -> None:
         self.screen = screen
         self.monster = monster
+
         self.bg_img = pygame.image.load("インベントリ背景画像.png").convert()
         self.bg_img = pygame.transform.scale(self.bg_img, (800, 600))
         self.bg_rect = self.bg_img.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2))
@@ -80,46 +87,29 @@ class Inventory:
 
     # ==== 共通：メッセージ表示関数 ====
     def show_message(self, text: str, delay=800):
-        """
-        中央下に小さめの黒背景＋白文字でメッセージを表示
-        """
-        
-        # 背景サイズ（画面幅の7割、縦100px程度）
-        msg_width = int(self.screen.get_width() * 0.7)
-        msg_height = 100
-
-        # 背景の位置（画面中央）
-        msg_x = (self.screen.get_width() - msg_width) // 2
-        msg_y = (self.screen.get_height() - msg_height) // 2
-
-        # 半透明黒背景を作成（より黒く、透明度220/255）
-        overlay = pygame.Surface((msg_width, msg_height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 220))  # ← 透明度を上げることでより黒く
-
-        # テキストを白で描画
-        font = pygame.font.Font(None, 36)
-        text_surface = font.render(text, True, (255, 255, 255))
-        text_rect = text_surface.get_rect(center=(msg_width // 2, msg_height // 2))
-
-        # 背景を描画
-        self.screen.blit(overlay, (msg_x, msg_y))
-        self.screen.blit(text_surface, (msg_x + text_rect.x, msg_y + text_rect.y))
-
+        """半透明黒背景に白文字でメッセージを表示"""
+        overlay = pygame.Surface((800, 600), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))  # 半透明黒
+        text_surface = self.font_item.render(text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center=(400, 550))
+        self.screen.blit(overlay, (0, 0))
+        self.screen.blit(text_surface, text_rect)
         pygame.display.flip()
         pygame.time.delay(delay)
-
 
     def open(self) -> None:
         """インベントリ画面を開く"""
         while True:
             self.draw()
             pygame.display.flip()
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
+
                 elif event.type == pygame.KEYDOWN:
-                    if event.key in [pygame.K_b, pygame.K_ESCAPE]:  # ← ESCでも閉じる
+                    if event.key in [pygame.K_b, pygame.K_ESCAPE]:
                         return
                     elif event.key == pygame.K_RIGHT:
                         self.current_tab = (self.current_tab + 1) % len(self.tabs)
@@ -159,12 +149,15 @@ class Inventory:
                 color = (255, 255, 255) if i == self.cursor else (150, 150, 150)
                 item_text = self.font_item.render(item, True, color)
                 self.screen.blit(item_text, (self.bg_rect.left + 100, self.bg_rect.top + 100 + i * 50))
+
         elif self.tabs[self.current_tab] == "Monster":
             m = self.monster
             color = (255, 255, 255)
             self.screen.blit(self.font_item.render(m.name, True, color), (self.bg_rect.left + 50, self.bg_rect.top + 100))
-            self.screen.blit(self.font_item.render(f"HP: {m.hp}/{m.max_hp}", True, color), (self.bg_rect.left + 50, self.bg_rect.top + 130))
-            self.screen.blit(self.font_item.render(f"Status: {m.status if m.status else 'Normal'}", True, color), (self.bg_rect.left + 50, self.bg_rect.top + 160))
+            self.screen.blit(self.font_item.render(f"HP: {m.hp}/{m.max_hp}", True, color),
+                             (self.bg_rect.left + 50, self.bg_rect.top + 130))
+            self.screen.blit(self.font_item.render(f"Status: {m.status if m.status else 'Normal'}", True, color),
+                             (self.bg_rect.left + 50, self.bg_rect.top + 160))
 
     def select_item(self) -> None:
         """選択中のアイテムを使用"""
@@ -182,20 +175,25 @@ class Inventory:
         potions = ["Heal Potion", "Antidote", "Status Heal"]
         cursor = 0
         font = pygame.font.Font(None, 40)
+
         while True:
             self.screen.blit(self.bg_img, self.bg_rect.topleft)
             self.draw()
+
             for i, potion in enumerate(potions):
                 color = (255, 255, 255) if i == cursor else (150, 150, 150)
-                self.screen.blit(font.render(potion, True, color), (self.bg_rect.left + 300, self.bg_rect.top + 100 + i * 50))
+                self.screen.blit(font.render(potion, True, color),
+                                 (self.bg_rect.left + 300, self.bg_rect.top + 100 + i * 50))
+
             pygame.display.flip()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
+
                 elif event.type == pygame.KEYDOWN:
-                    if event.key in [pygame.K_ESCAPE, pygame.K_b]:  # ← 一段階戻る
+                    if event.key in [pygame.K_ESCAPE, pygame.K_b]:
                         return
                     elif event.key == pygame.K_RETURN:
                         potion_name = potions[cursor]
@@ -206,7 +204,6 @@ class Inventory:
                                 self.monster.status_heal()
                         elif potion_name == "Status Heal":
                             self.monster.status_heal()
-
                         self.draw()
                         self.show_message(f"Used {potion_name} on {self.monster.name}!", delay=800)
                         return
@@ -215,25 +212,24 @@ class Inventory:
                     elif event.key == pygame.K_DOWN:
                         cursor = (cursor + 1) % len(potions)
 
-                
-# 以下基本コード(多少付け足しあり)
+
+# ===========================
+# メイン処理
+# ===========================
 def main():
     pygame.init()
-
     screen = pygame.display.set_mode((800, 600))
     pygame.display.set_caption("Top View Demo")
 
     # ===== 背景読み込み =====
     bg_img = pygame.image.load("background.png").convert()
-
-    # 背景の縮小倍率
     bg_scale = 1
     bw, bh = bg_img.get_size()
     bg_img = pygame.transform.scale(bg_img, (int(bw * bg_scale), int(bh * bg_scale)))
     bg_rect = bg_img.get_rect()
     screen = pygame.display.set_mode((bg_rect.width, bg_rect.height))
 
-    # ===== プレイヤー画像読み込み =====
+    # ===== プレイヤー画像 =====
     player_down_img = pygame.image.load("player_down.png").convert_alpha()
     player_left_img = pygame.image.load("player_side_left.png").convert_alpha()
     player_right_img = pygame.transform.flip(player_left_img, True, False)
@@ -247,54 +243,44 @@ def main():
 
     # ===== 玉座3人 =====
     boss_yellow_img = pygame.image.load("boss_yellow.png").convert_alpha()
-    boss_red_img    = pygame.image.load("boss_red.png").convert_alpha()
-    boss_white_img  = pygame.image.load("boss_white.png").convert_alpha()
+    boss_red_img = pygame.image.load("boss_red.png").convert_alpha()
+    boss_white_img = pygame.image.load("boss_white.png").convert_alpha()
 
-    boss_yellow_scale = 0.2
-    boss_red_scale    = 0.2
-    boss_white_scale  = 0.18
-
-    def scale_img(img, s):
-        w, h = img.get_size()
-        return pygame.transform.scale(img, (int(w * s), int(h * s)))
-
-    boss_yellow_img = scale_img(boss_yellow_img, boss_yellow_scale)
-    boss_red_img    = scale_img(boss_red_img,    boss_red_scale)
-    boss_white_img  = scale_img(boss_white_img,  boss_white_scale)
+    boss_yellow_img = pygame.transform.scale(boss_yellow_img, (100, 100))
+    boss_red_img = pygame.transform.scale(boss_red_img, (100, 100))
+    boss_white_img = pygame.transform.scale(boss_white_img, (100, 100))
 
     boss_yellow_rect = boss_yellow_img.get_rect(topleft=(200, 200))
-    boss_red_rect    = boss_red_img.get_rect(topleft=(400, 200))
-    boss_white_rect  = boss_white_img.get_rect(topleft=(600, 180))
+    boss_red_rect = boss_red_img.get_rect(topleft=(400, 200))
+    boss_white_rect = boss_white_img.get_rect(topleft=(600, 180))
 
     # ===== プレイヤー初期位置 =====
-    player_start_x = 465  # ← プレイヤーの初期X座標
-    player_start_y = 600  # ← プレイヤーの初期Y座標
-
+    player_rect = player_down_img.get_rect()
+    player_rect.topleft = (465, 600)
     player_img = player_down_img
-    player_rect = player_img.get_rect()
-    player_rect.topleft = (player_start_x, player_start_y)
 
-    # ===== 上方向の移動上限（top_limit）を決定 =====
+    # ===== 上方向の移動上限 =====
     if USE_MANUAL_TOP_LIMIT:
         top_limit = MANUAL_TOP_Y
     else:
         auto_top = detect_top_walkable_y(bg_img)
-        top_limit = max(0, auto_top + TOP_LIMIT_OFFSET)  # 画面外にならないよう0で下限
+        top_limit = max(0, auto_top + TOP_LIMIT_OFFSET)
 
     clock = pygame.time.Clock()
     speed = 4
 
     monster = Monster("Dragon", 200)
     monster.status = "Poison"
-    inventory = Inventory(screen,monster)  # インベントリクラスのインスタンス化
+    inventory = Inventory(screen, monster)
 
-    # ===== ゲームループ =====
+    # ===== メインループ =====
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            #　Bキーでインベントリを開く
+
+            # Bキーでインベントリを開く
             if event.type == pygame.KEYDOWN and event.key == pygame.K_b:
                 inventory.open()
 
@@ -317,10 +303,10 @@ def main():
         player_rect.x += dx
         player_rect.y += dy
 
-        # まずは画面外に出ないように全体クランプ
+        # 画面外に出ないよう制限
         player_rect.clamp_ip(bg_rect)
 
-        # 次に「上方向の上限」を適用（top が top_limit より小さくならない）
+        # 上方向の上限適用
         if player_rect.top < top_limit:
             player_rect.top = top_limit
 
@@ -331,7 +317,9 @@ def main():
         screen.blit(boss_white_img, boss_white_rect)
         screen.blit(player_img, player_rect)
         pygame.display.flip()
+
         clock.tick(60)
+
 
 if __name__ == "__main__":
     main()
