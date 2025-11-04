@@ -115,6 +115,7 @@ class Inventory:
 
     def open(self) -> None:
         """インベントリ画面を開く"""
+        pygame.mixer.music.play(loops = -1)
         while True:
             self.draw()
             pygame.display.flip()
@@ -126,6 +127,7 @@ class Inventory:
 
                 elif event.type == pygame.KEYDOWN:
                     if event.key in [pygame.K_b, pygame.K_ESCAPE]:
+                        pygame.mixer.music.stop()
                         return
                     elif event.key == pygame.K_RIGHT:
                         self.current_tab = (self.current_tab + 1) % len(self.tabs)
@@ -285,9 +287,11 @@ def main():
     clock = pygame.time.Clock()
     speed = 4
 
+    # 以下追加コード
     monster = Monster("Dragon", 200)
     monster.status = "Poison"
     inventory = Inventory(screen, monster)
+    pygame.mixer.music.load("poke_center.wav")  # BGMファイル読み込み
 
     # ===== メインループ =====
     while True:
