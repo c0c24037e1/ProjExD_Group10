@@ -10,15 +10,15 @@ MANUAL_TOP_Y = 150
 TOP_LIMIT_OFFSET = -300
 
 MODE_TITLE  = 0  # タイトル画面
-MODE_SELECT = 1  # モンスター選択画面（3体から1体選ぶ）
+MODE_SELECT = 1  # タマゴ＆孵化演出画面
 MODE_PLAY   = 2  # フィールド移動
 MODE_CLEAR  = 3  # チャンピオンおめでとう画面
 
 
 def detect_top_walkable_y(bg_surf: pygame.Surface) -> int:
+    """元のままのtop判定関数"""
     cx = bg_surf.get_rect().centerx
     h  = bg_surf.get_height()
-
     sample_y = int(h * 0.65)
     floor_color = bg_surf.get_at((cx, sample_y))
 
@@ -30,256 +30,299 @@ def detect_top_walkable_y(bg_surf: pygame.Surface) -> int:
     return 2
 
 
-def main():
-    pygame.init()
+def scale_img(img: pygame.Surface, s: float) -> pygame.Surface:
+    w, h = img.get_size()
+    return pygame.transform.scale(img, (int(w * s), int(h * s)))
 
-    screen = pygame.display.set_mode((800, 600))
-    pygame.display.set_caption("Top View Demo")
 
-    clock = pygame.time.Clock()
+class Player:
+    def __init__(self, bg_rect: pygame.Rect):
+        # 画像読み込み
+        self.down_img = pygame.image.load("player_down.png").convert_alpha()
+        self.left_img = pygame.image.load("player_side_left.png").convert_alpha()
+        self.right_img = pygame.transform.flip(self.left_img, True, False)
 
-    # フォント
-    font_big   = pygame.font.Font(None, 64)
-    font_mid   = pygame.font.Font(None, 40)
-    font_small = pygame.font.Font(None, 28)
+        player_scale = 0.1
+        pw, ph = self.down_img.get_size()
+        new_size = (int(pw * player_scale), int(ph * player_scale))
+        self.down_img  = pygame.transform.scale(self.down_img, new_size)
+        self.left_img  = pygame.transform.scale(self.left_img, new_size)
+        self.right_img = pygame.transform.scale(self.right_img, new_size)
 
-    # ===== 背景 =====
-    bg_img = pygame.image.load("background.png").convert()
+        self.image = self.down_img
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (465, 600)
+        self.bg_rect = bg_rect
 
-    bg_scale = 1  # 背景の縮小率（必要なら0.6とかに変えてOK）
-    bw, bh = bg_img.get_size()
-    bg_img = pygame.transform.scale(bg_img, (int(bw * bg_scale), int(bh * bg_scale)))
-    bg_rect = bg_img.get_rect()
+    def update(self, keys, top_limit: int):
+        dx = 0
+        dy = 0
 
-    # 画面サイズ合わせ
-    screen = pygame.display.set_mode((bg_rect.width, bg_rect.height))
+        if keys[pygame.K_LEFT]:
+            dx = -4
+            self.image = self.left_img
+        elif keys[pygame.K_RIGHT]:
+            dx = 4
+            self.image = self.right_img
+        elif keys[pygame.K_UP]:
+            dy = -4
+            self.image = self.down_img  # 上画像がないので仮でdown
+        elif keys[pygame.K_DOWN]:
+            dy = 4
+            self.image = self.down_img
 
-    # ===== プレイヤー =====
-    player_down_img = pygame.image.load("player_down.png").convert_alpha()
-    player_left_img = pygame.image.load("player_side_left.png").convert_alpha()
-    player_right_img = pygame.transform.flip(player_left_img, True, False)
+        self.rect.x += dx
+        self.rect.y += dy
 
-    player_scale = 0.1
-    pw, ph = player_down_img.get_size()
-    new_size = (int(pw * player_scale), int(ph * player_scale))
-    player_down_img  = pygame.transform.scale(player_down_img, new_size)
-    player_left_img  = pygame.transform.scale(player_left_img, new_size)
-    player_right_img = pygame.transform.scale(player_right_img, new_size)
+        # 画面外に出ない
+        self.rect.clamp_ip(self.bg_rect)
 
-    player_img = player_down_img
-    player_rect = player_img.get_rect()
-    player_rect.topleft = (465, 600)  # 初期座標は今まで通り
+        # 上方向の上限
+        if self.rect.top < top_limit:
+            self.rect.top = top_limit
 
-    # ===== 玉座3人（これも仲間候補として使う）=====
-    boss_yellow_img = pygame.image.load("boss_yellow.png").convert_alpha()
-    boss_red_img    = pygame.image.load("boss_red.png").convert_alpha()
-    boss_white_img  = pygame.image.load("boss_white.png").convert_alpha()
+    def draw(self, screen: pygame.Surface):
+        screen.blit(self.image, self.rect)
 
-    def scale_img(img, s):
-        w, h = img.get_size()
-        return pygame.transform.scale(img, (int(w * s), int(h * s)))
 
-    boss_yellow_img = scale_img(boss_yellow_img, 0.2)
-    boss_red_img    = scale_img(boss_red_img,    0.2)
-    boss_white_img  = scale_img(boss_white_img,  0.18)
+class Egg:
+    def __init__(self, bg_rect: pygame.Rect):
+        egg_img = pygame.image.load("egg.png").convert_alpha()
+        egg_scale = 0.35
+        ew, eh = egg_img.get_size()
+        egg_img = pygame.transform.scale(egg_img, (int(ew * egg_scale), int(eh * egg_scale)))
+        self.image = egg_img
+        self.rect = self.image.get_rect(center=bg_rect.center)
 
-    boss_yellow_rect = boss_yellow_img.get_rect(topleft=(200, 200))
-    boss_red_rect    = boss_red_img.get_rect(topleft=(400, 200))
-    boss_white_rect  = boss_white_img.get_rect(topleft=(600, 180))
+    def draw(self, screen: pygame.Surface):
+        screen.blit(self.image, self.rect)
 
-    # ===== 仲間候補（3体） =====
-    # ここに並べる順番が “選択肢” になる
-    partner_options = [boss_yellow_img, boss_red_img, boss_white_img]
-    partner_names   = ["satoru", "jun", "kouki"]  # 画面に名前出したいなら
-    selected_index = 0  # ←今選んでる子（←→で動かす）
 
-    # プレイ中に連れている相棒の画像（最初はまだいない）
-    partner_img = None
+class Partner:
+    def __init__(self, name: str):
+        img = pygame.image.load("3.png").convert_alpha()
+        img = scale_img(img, 5)  # こうかとんをドーンと大きく
+        self.image = img
+        self.name = name
 
-    # ===== top_limit =====
-    if USE_MANUAL_TOP_LIMIT:
-        top_limit = MANUAL_TOP_Y
-    else:
-        auto_top = detect_top_walkable_y(bg_img)
-        top_limit = max(0, auto_top + TOP_LIMIT_OFFSET)
+    def draw_center(self, screen: pygame.Surface, center_pos):
+        rect = self.image.get_rect(center=center_pos)
+        screen.blit(self.image, rect)
 
-    # ===== モード開始点 =====
-    mode = MODE_TITLE
+    def draw_midbottom(self, screen: pygame.Surface, midbottom_pos):
+        rect = self.image.get_rect()
+        rect.midbottom = midbottom_pos
+        screen.blit(self.image, rect)
 
-    # ===== メインループ =====
-    while True:
-        # ---------------- イベント処理 ----------------
+
+class BossGroup:
+    """玉座の3人をまとめて管理・描画"""
+    def __init__(self):
+        yellow = pygame.image.load("boss_yellow.png").convert_alpha()
+        red    = pygame.image.load("boss_red.png").convert_alpha()
+        white  = pygame.image.load("boss_white.png").convert_alpha()
+
+        self.yellow_img = scale_img(yellow, 0.2)
+        self.red_img    = scale_img(red,    0.2)
+        self.white_img  = scale_img(white,  0.18)
+
+        self.yellow_rect = self.yellow_img.get_rect(topleft=(200, 200))
+        self.red_rect    = self.red_img.get_rect(topleft=(400, 200))
+        self.white_rect  = self.white_img.get_rect(topleft=(600, 180))
+
+    def draw(self, screen: pygame.Surface):
+        screen.blit(self.yellow_img, self.yellow_rect)
+        screen.blit(self.red_img,    self.red_rect)
+        screen.blit(self.white_img,  self.white_rect)
+
+
+class Game:
+    def __init__(self):
+        pygame.init()
+        self.screen = pygame.display.set_mode((800, 600))
+        pygame.display.set_caption("Top View Demo")
+        self.clock = pygame.time.Clock()
+
+        # フォント
+        self.font_big   = pygame.font.Font(None, 64)
+        self.font_mid   = pygame.font.Font(None, 40)
+        self.font_small = pygame.font.Font(None, 28)
+
+        # 背景
+        bg_img = pygame.image.load("background.png").convert()
+        bg_scale = 1
+        bw, bh = bg_img.get_size()
+        bg_img = pygame.transform.scale(bg_img, (int(bw * bg_scale), int(bh * bg_scale)))
+        self.bg_img = bg_img
+        self.bg_rect = self.bg_img.get_rect()
+
+        self.screen = pygame.display.set_mode((self.bg_rect.width, self.bg_rect.height))
+
+        # 各オブジェクト
+        self.player = Player(self.bg_rect)
+        self.egg = Egg(self.bg_rect)
+        self.partner = Partner("koukaton")
+        self.bosses = BossGroup()
+
+        # top_limit
+        if USE_MANUAL_TOP_LIMIT:
+            self.top_limit = MANUAL_TOP_Y
+        else:
+            auto_top = detect_top_walkable_y(self.bg_img)
+            self.top_limit = max(0, auto_top + TOP_LIMIT_OFFSET)
+
+        # 状態
+        self.mode = MODE_TITLE
+        self.egg_phase = 0  # 0:タマゴ, 1:孵化後（相棒お披露目）
+
+    def run(self):
+        while True:
+            self.handle_events()
+            self.update()
+            self.draw()
+            pygame.display.flip()
+            self.clock.tick(60)
+
+    # ===== イベント処理 =====
+    def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
 
             # タイトル
-            if mode == MODE_TITLE:
+            if self.mode == MODE_TITLE:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
-                    mode = MODE_SELECT  # タイトル → 選択へ
+                    self.mode = MODE_SELECT
 
-            # モンスター選択
-            elif mode == MODE_SELECT:
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_LEFT:
-                        selected_index = (selected_index - 1) % len(partner_options)
-                    elif event.key == pygame.K_RIGHT:
-                        selected_index = (selected_index + 1) % len(partner_options)
-                    elif event.key == pygame.K_RETURN:
-                        # 決定したモンスターを相棒にする
-                        partner_img = partner_options[selected_index]
-                        # 決定したらゲーム開始
-                        mode = MODE_PLAY
+            # タマゴ＆孵化演出
+            elif self.mode == MODE_SELECT:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+                    if self.egg_phase == 0:
+                        # 1回目：孵化させて相棒出現
+                        self.egg_phase = 1
+                    else:
+                        # 2回目：ゲーム開始
+                        self.mode = MODE_PLAY
 
-            # プレイ中（フィールド）
-            elif mode == MODE_PLAY:
-                # デバッグ用：Cキーでクリア画面へ
+            # プレイ中
+            elif self.mode == MODE_PLAY:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_c:
-                    mode = MODE_CLEAR
+                    self.mode = MODE_CLEAR
 
             # クリア画面
-            elif mode == MODE_CLEAR:
+            elif self.mode == MODE_CLEAR:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
                     pygame.quit()
                     sys.exit()
 
-        # ---------------- ロジック（動きなど） ----------------
-        if mode == MODE_PLAY:
+    # ===== ロジック =====
+    def update(self):
+        if self.mode == MODE_PLAY:
             keys = pygame.key.get_pressed()
-            dx = 0
-            dy = 0
+            self.player.update(keys, self.top_limit)
 
-            if keys[pygame.K_LEFT]:
-                dx = -4
-                player_img = player_left_img
-            elif keys[pygame.K_RIGHT]:
-                dx = 4
-                player_img = player_right_img
-            elif keys[pygame.K_UP]:
-                dy = -4
-                player_img = player_down_img  # 仮：上向きまだないからdownで代用
-            elif keys[pygame.K_DOWN]:
-                dy = 4
-                player_img = player_down_img
+    # ===== 描画 =====
+    def draw(self):
+        if self.mode == MODE_TITLE:
+            self.draw_title()
+        elif self.mode == MODE_SELECT:
+            self.draw_select()
+        elif self.mode == MODE_PLAY:
+            self.draw_play()
+        elif self.mode == MODE_CLEAR:
+            self.draw_clear()
 
-            # 移動反映
-            player_rect.x += dx
-            player_rect.y += dy
+    def draw_title(self):
+        self.screen.fill((0, 0, 0))
+        t1 = self.font_big.render("The Chamber of Beginnings", True, (255, 255, 0))
+        t2 = self.font_mid.render("Press ENTER", True, (255, 255, 255))
+        t3 = self.font_small.render("A mysterious egg awaits...", True, (180, 180, 180))
+        cx = self.bg_rect.centerx
+        self.screen.blit(t1, (cx - t1.get_width()//2, 200))
+        self.screen.blit(t2, (cx - t2.get_width()//2, 280))
+        self.screen.blit(t3, (cx - t3.get_width()//2, 330))
 
-            # 画面外に出ない
-            player_rect.clamp_ip(bg_rect)
+    def draw_select(self):
+        self.screen.fill((10, 10, 30))
+        cx = self.bg_rect.centerx
+        cy = self.bg_rect.centery
 
-            # 上方向の上限
-            if player_rect.top < top_limit:
-                player_rect.top = top_limit
+        if self.egg_phase == 0:
+            # タマゴ状態
+            title = self.font_mid.render("A mysterious egg appeared...", True, (255, 255, 255))
+            self.screen.blit(title, (cx - title.get_width()//2, 80))
 
-        # CLEARやTITLE、SELECTは特にフレームごと動かす処理は今はなし
+            self.egg.draw(self.screen)
 
-        # ---------------- 描画 ----------------
-        if mode == MODE_TITLE:
-            # 黒背景にメッセージ
-            screen.fill((0, 0, 0))
-            t1 = font_big.render("The Chamber of Beginnings", True, (255, 255, 0))
-            t2 = font_mid.render("Press ENTER", True, (255, 255, 255))
-            t3 = font_small.render("Choose Your Partner Monster", True, (180, 180, 180))
+            guide = self.font_small.render("Press ENTER to hatch the egg!", True, (255, 255, 255))
+            self.screen.blit(guide, (cx - guide.get_width()//2, self.bg_rect.height - 100))
+        else:
+            # 孵化後：相棒お披露目
+            title = self.font_mid.render("The egg hatched!", True, (255, 255, 255))
+            self.screen.blit(title, (cx - title.get_width()//2, 60))
 
-            screen.blit(t1, (bg_rect.centerx - t1.get_width()//2, 200))
-            screen.blit(t2, (bg_rect.centerx - t2.get_width()//2, 280))
-            screen.blit(t3, (bg_rect.centerx - t3.get_width()//2, 330))
+            sub = self.font_small.render(f"Your partner is {self.partner.name}.", True, (255, 215, 0))
+            self.screen.blit(sub, (cx - sub.get_width()//2, 110))
 
-        elif mode == MODE_SELECT:
-            # 選択画面
-            screen.fill((20, 20, 40))
+            self.partner.draw_center(self.screen, (cx, cy + 40))
 
-            title = font_mid.render("Choose Your Partner Monster", True, (255, 255, 255))
-            screen.blit(title, (bg_rect.centerx - title.get_width()//2, 60))
+            guide = self.font_small.render("Press ENTER to start your journey!", True, (255, 255, 255))
+            self.screen.blit(guide, (cx - guide.get_width()//2, self.bg_rect.height - 100))
 
-            # 3体を横並びで描画
-            base_x = bg_rect.centerx - 300  # 左の開始位置
-            y = 180                         # 縦位置
+    def draw_play(self):
+        self.screen.blit(self.bg_img, (0, 0))
+        self.bosses.draw(self.screen)
+        self.player.draw(self.screen)
+        info = self.font_small.render("C", True, (255, 255, 0))
+        self.screen.blit(info, (10, 10))
 
-            for i, img in enumerate(partner_options):
-                # キャラ表示
-                x = base_x + i * 300        # 300px 間隔
-                rect = img.get_rect(midtop=(x, y))
-                screen.blit(img, rect)
+    def draw_clear(self):
+        self.screen.fill((20, 80, 90))
+        cx = self.bg_rect.centerx
+        cy = self.bg_rect.centery
 
-                # 選択中の枠（黄色い四角いアウトライン）
-                if i == selected_index:
-                    pygame.draw.rect(screen, (255, 255, 0), rect, 5)
+        # スポットライト
+        pygame.draw.polygon(self.screen, (255, 255, 255), [
+            (cx - 80, 0),
+            (cx - 20, 0),
+            (cx + 40, cy)
+        ], 0)
+        pygame.draw.polygon(self.screen, (255, 255, 255), [
+            (cx + 80, 0),
+            (cx + 20, 0),
+            (cx - 40, cy)
+        ], 0)
 
-                # 名前表示（ここが「名前が出る」とこ）
-                name_surface = font_small.render(partner_names[i], True, (255, 255, 0))
-                screen.blit(
-                    name_surface,
-                    (rect.centerx - name_surface.get_width()//2, rect.bottom + 10)
-                )
+        # キラキラ
+        star_color = (255, 255, 200)
+        for (sx, sy) in [(200,200),(300,150),(500,180),(600,240),(250,260),(450,120)]:
+            pygame.draw.circle(self.screen, star_color, (sx, sy), 4)
+            pygame.draw.circle(self.screen, star_color, (sx+8, sy+4), 2)
 
-                guide = font_small.render("← → で選ぶ    Enterで決定", True, (255, 255, 255))
-                screen.blit(guide, (bg_rect.centerx - guide.get_width()//2, bg_rect.height - 80))
+        line_top = self.font_big.render("You are the Champion.", True, (255, 215, 0))
+        self.screen.blit(line_top, (cx - line_top.get_width()//2, 80))
+
+        name_text = f"Your partner is {self.partner.name}!"
+        line_name = self.font_small.render(name_text, True, (255, 255, 255))
+        self.screen.blit(line_name, (cx - line_name.get_width()//2, 130))
+
+        party_y = cy + 40
+
+        # 相棒
+        self.partner.draw_midbottom(self.screen, (cx - 80, party_y))
+        # 主人公
+        hero_rect = self.player.image.get_rect()
+        hero_rect.midbottom = (cx + 40, party_y)
+        self.screen.blit(self.player.image, hero_rect)
+
+        line_press = self.font_mid.render("Press ENTER to finish", True, (255, 255, 255))
+        self.screen.blit(line_press, (cx - line_press.get_width()//2, party_y + 40))
 
 
-        elif mode == MODE_PLAY:
-            # 通常プレイ画面
-            screen.blit(bg_img, (0, 0))
-            screen.blit(boss_yellow_img, boss_yellow_rect)
-            screen.blit(boss_red_img,    boss_red_rect)
-            screen.blit(boss_white_img,  boss_white_rect)
-
-            screen.blit(player_img, player_rect)
-
-        
-
-            # デバッグ：クリア行き方
-            info = font_small.render("C", True, (255, 255, 0))
-            screen.blit(info, (10, 10))
-
-        elif mode == MODE_CLEAR:
-            # お祝い画面
-            
-            screen.fill((20, 80, 90))
-
-            # スポットライトっぽい三角形
-            pygame.draw.polygon(screen, (255, 255, 255), [
-                (bg_rect.centerx - 80, 0),
-                (bg_rect.centerx - 20, 0),
-                (bg_rect.centerx + 40, bg_rect.centery)
-            ], 0)
-            pygame.draw.polygon(screen, (255, 255, 255), [
-                (bg_rect.centerx + 80, 0),
-                (bg_rect.centerx + 20, 0),
-                (bg_rect.centerx - 40, bg_rect.centery)
-            ], 0)
-
-            # キラキラ
-            star_color = (255, 255, 200)
-            for (sx, sy) in [(200,200),(300,150),(500,180),(600,240),(250,260),(450,120)]:
-                pygame.draw.circle(screen, star_color, (sx, sy), 4)
-                pygame.draw.circle(screen, star_color, (sx+8, sy+4), 2)
-
-            line_top = font_big.render("You are the Champion.", True, (255, 215, 0))
-            screen.blit(line_top, (bg_rect.centerx - line_top.get_width()//2, 80))
-
-            party_y = bg_rect.centery + 40
-
-            # 相棒モンスター（選んだやつ）
-            if partner_img is not None:
-                buddy_rect = partner_img.get_rect()
-                buddy_rect.midbottom = (bg_rect.centerx - 80, party_y)
-                screen.blit(partner_img, buddy_rect)
-
-            # 主人公
-            hero_rect = player_img.get_rect()
-            hero_rect.midbottom = (bg_rect.centerx + 40, party_y)
-            screen.blit(player_img, hero_rect)
-
-            line_press = font_mid.render("Press ENTER to finish", True, (255, 255, 255))
-            screen.blit(line_press, (bg_rect.centerx - line_press.get_width()//2, party_y + 40))
-
-        pygame.display.flip()
-        clock.tick(60)
-        
+def main():
+    game = Game()
+    game.run()
 
 
 if __name__ == "__main__":
