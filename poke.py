@@ -269,7 +269,7 @@ def main():
     bosses = [
         Boss("イエローボス", "boss_yellow.png", "でんき", 0.2, 200, 200),
         Boss("レッドボス", "boss_red.png", "ほのお", 0.2, 400, 200),
-        Boss("ホワイトボス", "boss_white.png", "みず", 0.18, 600, 180),
+        Boss("ブルーボス", "boss_white.png", "みず", 0.18, 600, 180),
     ]
 
     top_limit = MANUAL_TOP_Y if USE_MANUAL_TOP_LIMIT else max(0, detect_top_walkable_y(bg) + TOP_LIMIT_OFFSET)
